@@ -1,0 +1,1035 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Unified Agentic System - File Operations Protocol Schema",
+  "description": "Comprehensive schema defining the structure and validation rules for file operations in the unified agentic system",
+  "type": "object",
+  "required": ["operation", "id", "timestamp", "parameters"],
+  "properties": {
+    "operation": {
+      "type": "string",
+      "description": "The type of file operation to perform",
+      "enum": [
+        "read_file", 
+        "write_file", 
+        "create_file", 
+        "delete_file", 
+        "rename_file", 
+        "copy_file", 
+        "list_directory", 
+        "create_directory", 
+        "delete_directory", 
+        "find_files", 
+        "get_file_info", 
+        "bulk_operation", 
+        "apply_edits"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this operation request",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO 8601 timestamp for when the operation was requested",
+      "format": "date-time"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Operation-specific parameters"
+    },
+    "options": {
+      "type": "object",
+      "description": "Optional settings that modify the behavior of the operation",
+      "properties": {
+        "transactional": {
+          "type": "boolean",
+          "description": "Whether the operation should be transactional (atomic)",
+          "default": false
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Timeout in milliseconds",
+          "minimum": 100,
+          "maximum": 30000,
+          "default": 5000
+        },
+        "retry": {
+          "type": "object",
+          "description": "Retry configuration",
+          "properties": {
+            "attempts": {
+              "type": "integer",
+              "description": "Maximum number of retry attempts",
+              "minimum": 0,
+              "maximum": 10,
+              "default": 3
+            },
+            "delay": {
+              "type": "integer",
+              "description": "Delay between retries in milliseconds",
+              "minimum": 50,
+              "maximum": 5000,
+              "default": 200
+            },
+            "strategy": {
+              "type": "string",
+              "description": "Retry strategy to use",
+              "enum": ["fixed", "exponential", "linear"],
+              "default": "exponential"
+            }
+          },
+          "additionalProperties": false
+        },
+        "securityContext": {
+          "type": "object",
+          "description": "Security context for the operation",
+          "properties": {
+            "sandbox": {
+              "type": "boolean",
+              "description": "Whether to execute in a sandbox environment",
+              "default": true
+            },
+            "requireExplicitPermission": {
+              "type": "boolean",
+              "description": "Whether to require explicit user permission",
+              "default": false
+            },
+            "accessLevel": {
+              "type": "string",
+              "description": "Required access level for the operation",
+              "enum": ["read_only", "read_write", "admin"],
+              "default": "read_only"
+            }
+          },
+          "additionalProperties": false
+        },
+        "notifications": {
+          "type": "object",
+          "description": "Notification configuration",
+          "properties": {
+            "onSuccess": {
+              "type": "boolean",
+              "description": "Whether to send a notification on success",
+              "default": false
+            },
+            "onError": {
+              "type": "boolean",
+              "description": "Whether to send a notification on error",
+              "default": true
+            },
+            "includeDetails": {
+              "type": "boolean",
+              "description": "Whether to include operation details in notifications",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "description": "Additional context information for the operation",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "ID of the current session"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user making the request"
+        },
+        "sourceLocation": {
+          "type": "string",
+          "description": "Where the operation was initiated from",
+          "enum": ["editor", "terminal", "agent", "extension", "api"]
+        },
+        "correlationId": {
+          "type": "string",
+          "description": "ID for correlating related operations"
+        },
+        "parentOperationId": {
+          "type": "string",
+          "description": "ID of the parent operation if this is part of a larger operation"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["read_file"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file to read",
+                "minLength": 1
+              },
+              "encoding": {
+                "type": "string",
+                "description": "Encoding to use when reading the file",
+                "enum": ["utf8", "ascii", "binary", "base64", "hex", "utf16le"],
+                "default": "utf8"
+              },
+              "start_line": {
+                "type": "integer",
+                "description": "Line to start reading from (0-indexed)",
+                "minimum": 0,
+                "default": 0
+              },
+              "end_line": {
+                "type": "integer",
+                "description": "Line to end reading at (0-indexed, inclusive)",
+                "minimum": 0
+              },
+              "start_position": {
+                "type": "integer",
+                "description": "Character position to start reading from",
+                "minimum": 0
+              },
+              "end_position": {
+                "type": "integer",
+                "description": "Character position to end reading at",
+                "minimum": 0
+              },
+              "include_line_numbers": {
+                "type": "boolean",
+                "description": "Whether to include line numbers in the output",
+                "default": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["write_file"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["file_path", "content"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file to write to",
+                "minLength": 1
+              },
+              "content": {
+                "type": "string",
+                "description": "Content to write to the file"
+              },
+              "encoding": {
+                "type": "string",
+                "description": "Encoding to use when writing the file",
+                "enum": ["utf8", "ascii", "binary", "base64", "hex", "utf16le"],
+                "default": "utf8"
+              },
+              "mode": {
+                "type": "string",
+                "description": "File mode to create the file with",
+                "enum": ["append", "write", "exclusive"],
+                "default": "write"
+              },
+              "create_directory": {
+                "type": "boolean",
+                "description": "Whether to create parent directories if they don't exist",
+                "default": false
+              },
+              "backup": {
+                "type": "boolean",
+                "description": "Whether to create a backup of the original file",
+                "default": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["create_file"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file to create",
+                "minLength": 1
+              },
+              "content": {
+                "type": "string",
+                "description": "Initial content to write to the file",
+                "default": ""
+              },
+              "encoding": {
+                "type": "string",
+                "description": "Encoding to use when writing the file",
+                "enum": ["utf8", "ascii", "binary", "base64", "hex", "utf16le"],
+                "default": "utf8"
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "Whether to overwrite the file if it already exists",
+                "default": false
+              },
+              "create_directory": {
+                "type": "boolean",
+                "description": "Whether to create parent directories if they don't exist",
+                "default": false
+              },
+              "template": {
+                "type": "string",
+                "description": "Template to use for file creation",
+                "enum": ["empty", "class", "component", "test", "module", "custom"]
+              },
+              "template_parameters": {
+                "type": "object",
+                "description": "Parameters to pass to the template"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["delete_file"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file to delete",
+                "minLength": 1
+              },
+              "force": {
+                "type": "boolean",
+                "description": "Whether to force deletion even if the file is protected",
+                "default": false
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "Whether to recursively delete any nested content (if applicable)",
+                "default": false
+              },
+              "trash": {
+                "type": "boolean",
+                "description": "Whether to move the file to trash instead of permanent deletion",
+                "default": true
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["rename_file"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source_path", "destination_path"],
+            "properties": {
+              "source_path": {
+                "type": "string",
+                "description": "Path to the file to rename",
+                "minLength": 1
+              },
+              "destination_path": {
+                "type": "string",
+                "description": "New path for the file",
+                "minLength": 1
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "Whether to overwrite the destination if it already exists",
+                "default": false
+              },
+              "create_directory": {
+                "type": "boolean",
+                "description": "Whether to create parent directories if they don't exist",
+                "default": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["copy_file"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["source_path", "destination_path"],
+            "properties": {
+              "source_path": {
+                "type": "string",
+                "description": "Path to the file to copy",
+                "minLength": 1
+              },
+              "destination_path": {
+                "type": "string",
+                "description": "Path to copy the file to",
+                "minLength": 1
+              },
+              "overwrite": {
+                "type": "boolean",
+                "description": "Whether to overwrite the destination if it already exists",
+                "default": false
+              },
+              "create_directory": {
+                "type": "boolean",
+                "description": "Whether to create parent directories if they don't exist",
+                "default": false
+              },
+              "preserve_timestamp": {
+                "type": "boolean",
+                "description": "Whether to preserve the source file's timestamp",
+                "default": true
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["list_directory"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["directory_path"],
+            "properties": {
+              "directory_path": {
+                "type": "string",
+                "description": "Path to the directory to list",
+                "minLength": 1
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "Whether to recursively list nested directories",
+                "default": false
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Whether to include hidden files in the listing",
+                "default": false
+              },
+              "filter": {
+                "type": "string",
+                "description": "Glob pattern to filter the results by",
+                "default": "*"
+              },
+              "exclude": {
+                "type": "string",
+                "description": "Glob pattern to exclude files by"
+              },
+              "sort_by": {
+                "type": "string",
+                "description": "Field to sort the results by",
+                "enum": ["name", "size", "type", "modified"],
+                "default": "name"
+              },
+              "sort_direction": {
+                "type": "string",
+                "description": "Direction to sort the results in",
+                "enum": ["ascending", "descending"],
+                "default": "ascending"
+              },
+              "include_details": {
+                "type": "boolean",
+                "description": "Whether to include detailed file information",
+                "default": false
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum depth to recurse to (when recursive is true)",
+                "minimum": 1,
+                "default": 10
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["create_directory"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["directory_path"],
+            "properties": {
+              "directory_path": {
+                "type": "string",
+                "description": "Path to the directory to create",
+                "minLength": 1
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "Whether to create parent directories if they don't exist",
+                "default": true
+              },
+              "mode": {
+                "type": "string",
+                "description": "File mode to create the directory with",
+                "pattern": "^[0-7]{3,4}$",
+                "default": "0755"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["delete_directory"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["directory_path"],
+            "properties": {
+              "directory_path": {
+                "type": "string",
+                "description": "Path to the directory to delete",
+                "minLength": 1
+              },
+              "recursive": {
+                "type": "boolean",
+                "description": "Whether to recursively delete the directory contents",
+                "default": false
+              },
+              "force": {
+                "type": "boolean",
+                "description": "Whether to force deletion even if the directory is not empty",
+                "default": false
+              },
+              "trash": {
+                "type": "boolean",
+                "description": "Whether to move the directory to trash instead of permanent deletion",
+                "default": true
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["find_files"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["search_pattern"],
+            "properties": {
+              "search_pattern": {
+                "type": "string",
+                "description": "Pattern to search for",
+                "minLength": 1
+              },
+              "root_directory": {
+                "type": "string",
+                "description": "Directory to start searching from",
+                "default": "."
+              },
+              "search_type": {
+                "type": "string",
+                "description": "Type of search to perform",
+                "enum": ["glob", "regex", "semantic"],
+                "default": "glob"
+              },
+              "include_hidden": {
+                "type": "boolean",
+                "description": "Whether to include hidden files in the search",
+                "default": false
+              },
+              "max_results": {
+                "type": "integer",
+                "description": "Maximum number of results to return",
+                "minimum": 1,
+                "default": 100
+              },
+              "max_depth": {
+                "type": "integer",
+                "description": "Maximum depth to recurse to",
+                "minimum": 1,
+                "default": 20
+              },
+              "file_types": {
+                "type": "array",
+                "description": "File types to include in the search",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "exclude_patterns": {
+                "type": "array",
+                "description": "Patterns to exclude from the search",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["node_modules", ".git"]
+              },
+              "content_search": {
+                "type": "boolean",
+                "description": "Whether to search in file contents as well as filenames",
+                "default": false
+              },
+              "content_pattern": {
+                "type": "string",
+                "description": "Pattern to search for in file contents"
+              },
+              "case_sensitive": {
+                "type": "boolean",
+                "description": "Whether the search is case sensitive",
+                "default": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["get_file_info"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["file_path"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file to get information about",
+                "minLength": 1
+              },
+              "include_hash": {
+                "type": "boolean",
+                "description": "Whether to include a hash of the file contents",
+                "default": false
+              },
+              "hash_algorithm": {
+                "type": "string",
+                "description": "Hash algorithm to use",
+                "enum": ["md5", "sha1", "sha256", "sha512"],
+                "default": "sha256"
+              },
+              "include_content_preview": {
+                "type": "boolean",
+                "description": "Whether to include a preview of the file contents",
+                "default": false
+              },
+              "preview_lines": {
+                "type": "integer",
+                "description": "Number of lines to include in the preview",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 10
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["bulk_operation"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["operations"],
+            "properties": {
+              "operations": {
+                "type": "array",
+                "description": "List of operations to perform",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["operation", "parameters"],
+                  "properties": {
+                    "operation": {
+                      "type": "string",
+                      "description": "The type of file operation to perform",
+                      "enum": [
+                        "read_file", 
+                        "write_file", 
+                        "create_file", 
+                        "delete_file", 
+                        "rename_file", 
+                        "copy_file", 
+                        "list_directory", 
+                        "create_directory", 
+                        "delete_directory", 
+                        "get_file_info"
+                      ]
+                    },
+                    "parameters": {
+                      "type": "object",
+                      "description": "Operation-specific parameters"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier for this operation"
+                    },
+                    "continue_on_error": {
+                      "type": "boolean",
+                      "description": "Whether to continue with subsequent operations if this one fails",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "abort_on_error": {
+                "type": "boolean",
+                "description": "Whether to abort all operations if any one fails",
+                "default": true
+              },
+              "parallel": {
+                "type": "boolean",
+                "description": "Whether to execute operations in parallel when possible",
+                "default": false
+              },
+              "max_concurrent": {
+                "type": "integer",
+                "description": "Maximum number of concurrent operations to execute",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 4
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["apply_edits"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "parameters": {
+            "type": "object",
+            "required": ["file_path", "edits"],
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "Path to the file to edit",
+                "minLength": 1
+              },
+              "edits": {
+                "type": "array",
+                "description": "List of edits to apply",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["type", "range"],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Type of edit to perform",
+                      "enum": ["insert", "delete", "replace"]
+                    },
+                    "range": {
+                      "type": "object",
+                      "description": "Range of text to edit",
+                      "required": ["start"],
+                      "properties": {
+                        "start": {
+                          "type": "object",
+                          "required": ["line", "character"],
+                          "properties": {
+                            "line": {
+                              "type": "integer",
+                              "description": "Line number (0-indexed)",
+                              "minimum": 0
+                            },
+                            "character": {
+                              "type": "integer",
+                              "description": "Character position (0-indexed)",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "end": {
+                          "type": "object",
+                          "required": ["line", "character"],
+                          "properties": {
+                            "line": {
+                              "type": "integer",
+                              "description": "Line number (0-indexed)",
+                              "minimum": 0
+                            },
+                            "character": {
+                              "type": "integer",
+                              "description": "Character position (0-indexed)",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "text": {
+                      "type": "string",
+                      "description": "Text to insert or replace with"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier for this edit"
+                    }
+                  },
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "type": { "enum": ["insert"] }
+                        }
+                      },
+                      "then": {
+                        "required": ["text"]
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "type": { "enum": ["replace"] }
+                        }
+                      },
+                      "then": {
+                        "required": ["text", "range.end"]
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "type": { "enum": ["delete"] }
+                        }
+                      },
+                      "then": {
+                        "required": ["range.end"]
+                      }
+                    }
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "create_if_not_exists": {
+                "type": "boolean",
+                "description": "Whether to create the file if it doesn't exist",
+                "default": false
+              },
+              "create_directory": {
+                "type": "boolean",
+                "description": "Whether to create parent directories if they don't exist",
+                "default": false
+              },
+              "apply_in_reverse": {
+                "type": "boolean",
+                "description": "Whether to apply edits in reverse order (from end to start)",
+                "default": true
+              },
+              "format_after_edits": {
+                "type": "boolean",
+                "description": "Whether to format the file after applying edits",
+                "default": false
+              },
+              "save_after_edits": {
+                "type": "boolean",
+                "description": "Whether to save the file after applying edits",
+                "default": true
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "operation": "read_file",
+      "id": "read-1",
+      "timestamp": "2023-05-15T10:30:00Z",
+      "parameters": {
+        "file_path": "src/components/UserProfile.js",
+        "encoding": "utf8",
+        "start_line": 10,
+        "end_line": 50
+      }
+    },
+    {
+      "operation": "write_file",
+      "id": "write-1",
+      "timestamp": "2023-05-15T10:35:00Z",
+      "parameters": {
+        "file_path": "src/utils/helpers.js",
+        "content": "export function formatDate(date) {\n  return new Date(date).toLocaleDateString();\n}\n",
+        "encoding": "utf8",
+        "mode": "write",
+        "create_directory": true
+      },
+      "options": {
+        "transactional": true,
+        "securityContext": {
+          "sandbox": true,
+          "requireExplicitPermission": true
+        }
+      }
+    },
+    {
+      "operation": "find_files",
+      "id": "find-1",
+      "timestamp": "2023-05-15T10:40:00Z",
+      "parameters": {
+        "search_pattern": "*.jsx",
+        "root_directory": "src/components",
+        "search_type": "glob",
+        "max_results": 50,
+        "exclude_patterns": ["node_modules", "tests"]
+      }
+    },
+    {
+      "operation": "apply_edits",
+      "id": "edit-1",
+      "timestamp": "2023-05-15T10:45:00Z",
+      "parameters": {
+        "file_path": "src/components/Button.jsx",
+        "edits": [
+          {
+            "type": "replace",
+            "range": {
+              "start": { "line": 15, "character": 10 },
+              "end": { "line": 15, "character": 25 }
+            },
+            "text": "variant || 'primary'"
+          },
+          {
+            "type": "insert",
+            "range": {
+              "start": { "line": 20, "character": 0 }
+            },
+            "text": "  const handleClick = (event) => {\n    if (props.onClick) {\n      props.onClick(event);\n    }\n  };\n"
+          }
+        ],
+        "format_after_edits": true
+      }
+    },
+    {
+      "operation": "bulk_operation",
+      "id": "bulk-1",
+      "timestamp": "2023-05-15T10:50:00Z",
+      "parameters": {
+        "operations": [
+          {
+            "operation": "create_directory",
+            "parameters": {
+              "directory_path": "src/components/forms",
+              "recursive": true
+            },
+            "id": "create-dir-1"
+          },
+          {
+            "operation": "copy_file",
+            "parameters": {
+              "source_path": "src/components/Form.jsx",
+              "destination_path": "src/components/forms/BasicForm.jsx",
+              "overwrite": false
+            },
+            "id": "copy-1"
+          },
+          {
+            "operation": "copy_file",
+            "parameters": {
+              "source_path": "src/components/FormField.jsx",
+              "destination_path": "src/components/forms/FormField.jsx",
+              "overwrite": false
+            },
+            "id": "copy-2"
+          }
+        ],
+        "abort_on_error": true
+      },
+      "options": {
+        "transactional": true
+      }
+    }
+  ]
+} 
